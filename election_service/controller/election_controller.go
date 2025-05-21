@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"example.com/se/config"
 	"example.com/se/entity"
+	"example.com/se/metrics"
 )
 
 // Candidate struct สำหรับดึงข้อมูลจาก candidate_service
@@ -77,7 +78,6 @@ func GetElection(c *gin.Context) {
 	c.JSON(http.StatusOK, election)
 }
 
-// สร้าง election ใหม่
 func CreateElection(c *gin.Context) {
 	var election entity.Elections
 	if err := c.ShouldBindJSON(&election); err != nil {
@@ -85,7 +85,6 @@ func CreateElection(c *gin.Context) {
 		return
 	}
 
-	// กำหนดค่าเริ่มต้นบางอย่าง เช่น status ถ้ายังไม่มี
 	if election.Status == "" {
 		election.Status = "pending"
 	}
@@ -98,10 +97,18 @@ func CreateElection(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// เพิ่ม counter create
+	metrics.ElectionsCreateTotal.Inc()
+
+	// อัปเดต gauge จำนวน election ทั้งหมด
+	var count int64
+	db.Model(&entity.Elections{}).Count(&count)
+	metrics.ElectionsTotal.Set(float64(count))
+
 	c.JSON(http.StatusCreated, election)
 }
 
-// แก้ไข election
 func UpdateElection(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -127,10 +134,13 @@ func UpdateElection(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// เพิ่ม counter update
+	metrics.ElectionsUpdateTotal.Inc()
+
 	c.JSON(http.StatusOK, election)
 }
 
-// ลบ election
 func DeleteElection(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -143,8 +153,18 @@ func DeleteElection(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// เพิ่ม counter delete
+	metrics.ElectionsDeleteTotal.Inc()
+
+	// อัปเดต gauge จำนวน election หลังลบ
+	var count int64
+	db.Model(&entity.Elections{}).Count(&count)
+	metrics.ElectionsTotal.Set(float64(count))
+
 	c.JSON(http.StatusOK, gin.H{"message": "Election deleted"})
 }
+
 
 // ฟังก์ชันช่วยดึง candidates จาก candidate_service ผ่าน HTTP API
 func fetchCandidatesByElectionID(electionID uint) ([]Candidate, error) {

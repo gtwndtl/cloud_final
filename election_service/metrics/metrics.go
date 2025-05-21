@@ -5,29 +5,28 @@ import (
 )
 
 var (
-	UsersTotal = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "users_total",
-		Help: "Total number of users registered",
+	// จำนวน election ทั้งหมดในระบบ (gauge)
+	ElectionsTotal = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "elections_total",
+		Help: "Total number of elections",
 	})
 
-	UserSignupsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "users_signup_total",
-		Help: "Total number of successful user signups",
+	// นับจำนวนการสร้าง election
+	ElectionsCreateTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "elections_create_total",
+		Help: "Total number of elections created",
 	})
 
-	UserSignupFailuresTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "users_signup_failures_total",
-		Help: "Total number of failed user signups",
+	// นับจำนวนการแก้ไข election
+	ElectionsUpdateTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "elections_update_total",
+		Help: "Total number of elections updated",
 	})
 
-	UserLoginsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "users_logins_total",
-		Help: "Total number of successful user logins",
-	})
-
-	UserLoginFailuresTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "users_login_failures_total",
-		Help: "Total number of failed user logins",
+	// นับจำนวนการลบ election
+	ElectionsDeleteTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "elections_delete_total",
+		Help: "Total number of elections deleted",
 	})
 
 	HTTPRequestDurationSeconds = prometheus.NewHistogramVec(
@@ -40,6 +39,7 @@ var (
 	)
 
 
+	// นับจำนวน HTTP requests ที่รับมา
 	HTTPRequestsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "http_requests_total",
@@ -51,11 +51,10 @@ var (
 
 func RegisterMetrics() {
 	prometheus.MustRegister(
-		UsersTotal,
-		UserSignupsTotal,
-		UserSignupFailuresTotal,
-		UserLoginsTotal,
-		UserLoginFailuresTotal,
+		ElectionsTotal,
+		ElectionsCreateTotal,
+		ElectionsUpdateTotal,
+		ElectionsDeleteTotal,
 		HTTPRequestDurationSeconds,
 		HTTPRequestsTotal,
 	)

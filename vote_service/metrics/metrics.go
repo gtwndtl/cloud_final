@@ -5,31 +5,18 @@ import (
 )
 
 var (
-	UsersTotal = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "users_total",
-		Help: "Total number of users registered",
+	// Metrics เกี่ยวกับ Vote
+	VotesCreatedTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "votes_created_total",
+		Help: "Total number of votes created",
 	})
 
-	UserSignupsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "users_signup_total",
-		Help: "Total number of successful user signups",
+	VotesDeletedTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "votes_deleted_total",
+		Help: "Total number of votes deleted",
 	})
 
-	UserSignupFailuresTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "users_signup_failures_total",
-		Help: "Total number of failed user signups",
-	})
-
-	UserLoginsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "users_logins_total",
-		Help: "Total number of successful user logins",
-	})
-
-	UserLoginFailuresTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "users_login_failures_total",
-		Help: "Total number of failed user logins",
-	})
-
+	// Metrics HTTP Request
 	HTTPRequestDurationSeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "http_request_duration_seconds",
@@ -38,7 +25,6 @@ var (
 		},
 		[]string{"method", "path"},
 	)
-
 
 	HTTPRequestsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -51,11 +37,8 @@ var (
 
 func RegisterMetrics() {
 	prometheus.MustRegister(
-		UsersTotal,
-		UserSignupsTotal,
-		UserSignupFailuresTotal,
-		UserLoginsTotal,
-		UserLoginFailuresTotal,
+		VotesCreatedTotal,
+		VotesDeletedTotal,
 		HTTPRequestDurationSeconds,
 		HTTPRequestsTotal,
 	)

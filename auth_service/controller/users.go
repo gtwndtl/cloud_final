@@ -1,29 +1,17 @@
 package controller
 
 import (
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/push"
 
 	"example.com/se/config"
 	"example.com/se/entity"
+	"example.com/se/metrics"
 	"example.com/se/services"
 )
 
-const pushGatewayURL = "http://pushgateway:9091"
-const jobName = "auth_service"
-
-func pushMetric(collector prometheus.Collector) {
-	if err := push.New(pushGatewayURL, jobName).
-		Collector(collector).
-		Push(); err != nil {
-		log.Println("Failed to push metric:", err)
-	}
-}
 
 func GetAllUsers(c *gin.Context) {
 	db := config.DB()
@@ -62,20 +50,17 @@ func UpdateUser(c *gin.Context) {
 	var payload UpdateUserPayload
 	db := config.DB()
 
-	// Check if user exists
 	var user entity.Users
 	if err := db.First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
-	// Bind JSON payload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
 
-	// Update fields
 	user.FirstName = payload.FirstName
 	user.LastName = payload.LastName
 	user.Age = payload.Age
@@ -86,13 +71,8 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Push metric for update
-	updateGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "users_update_total",
-		Help: "Total number of user updates",
-	})
-	updateGauge.Inc()
-	pushMetric(updateGauge)
+	metrics.UsersUpdateTotal.Inc()
+	pushMetric(metrics.UsersUpdateTotal)
 
 	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully"})
 }
@@ -107,16 +87,12 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// Push metric for delete
-	deleteCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "users_delete_total",
-		Help: "Total number of user deletes",
-	})
-	deleteCounter.Inc()
-	pushMetric(deleteCounter)
+	metrics.UsersDeleteTotal.Inc()
+	pushMetric(metrics.UsersDeleteTotal)
 
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 }
+
 
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -158,7 +134,6 @@ func AuthorizeJWT() gin.HandlerFunc {
 			return
 		}
 
-		// Save claims info in context for later use
 		c.Set("email", claims.Email)
 
 		c.Next()

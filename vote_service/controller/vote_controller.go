@@ -1,18 +1,20 @@
 package controller
+
 import (
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"example.com/se/config"
 	"example.com/se/entity"
+	"example.com/se/metrics"
 )
 
-// Struct สำหรับ response จากแต่ละ service
+// Structs สำหรับ response จากแต่ละ service
 type User struct {
 	ID   uint   `json:"id"`
 	Name string `json:"name"`
@@ -28,73 +30,78 @@ type Election struct {
 	Title string `json:"title"`
 }
 
-// ฟังก์ชันดึงข้อมูล User จาก user_service
 func fetchUser(userID uint) (*User, error) {
 	url := fmt.Sprintf("http://user_service:8001/api/user/%d", userID)
 	resp, err := http.Get(url)
 	if err != nil {
-		log.Println("Failed to fetch user:", err)
+		log.Printf("Failed to fetch user: %v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("user service returned status %d", resp.StatusCode)
+		errMsg := fmt.Errorf("user service returned status %d", resp.StatusCode)
+		log.Println(errMsg)
+		return nil, errMsg
 	}
 
 	var user User
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		log.Printf("Failed to decode user response: %v\n", err)
 		return nil, err
 	}
 
 	return &user, nil
 }
 
-// ฟังก์ชันดึงข้อมูล Candidate จาก candidate_service
 func fetchCandidate(candidateID uint) (*Candidate, error) {
 	url := fmt.Sprintf("http://candidate_service:8003/api/candidate/%d", candidateID)
 	resp, err := http.Get(url)
 	if err != nil {
-		log.Println("Failed to fetch candidate:", err)
+		log.Printf("Failed to fetch candidate: %v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("candidate service returned status %d", resp.StatusCode)
+		errMsg := fmt.Errorf("candidate service returned status %d", resp.StatusCode)
+		log.Println(errMsg)
+		return nil, errMsg
 	}
 
 	var candidate Candidate
 	if err := json.NewDecoder(resp.Body).Decode(&candidate); err != nil {
+		log.Printf("Failed to decode candidate response: %v\n", err)
 		return nil, err
 	}
 
 	return &candidate, nil
 }
 
-// ฟังก์ชันดึงข้อมูล Election จาก election_service
 func fetchElection(electionID uint) (*Election, error) {
 	url := fmt.Sprintf("http://election_service:8002/api/election/%d", electionID)
 	resp, err := http.Get(url)
 	if err != nil {
-		log.Println("Failed to fetch election:", err)
+		log.Printf("Failed to fetch election: %v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("election service returned status %d", resp.StatusCode)
+		errMsg := fmt.Errorf("election service returned status %d", resp.StatusCode)
+		log.Println(errMsg)
+		return nil, errMsg
 	}
 
 	var election Election
 	if err := json.NewDecoder(resp.Body).Decode(&election); err != nil {
+		log.Printf("Failed to decode election response: %v\n", err)
 		return nil, err
 	}
 
 	return &election, nil
 }
 
-// ตัวอย่าง handler ดึง vote พร้อมข้อมูล detail จาก service ต่างๆ
 func GetVoteWithDetails(c *gin.Context) {
 	db := config.DB()
 	var votes []entity.Votes
@@ -113,9 +120,20 @@ func GetVoteWithDetails(c *gin.Context) {
 
 	var result []VoteWithDetails
 	for _, v := range votes {
-		user, _ := fetchUser(v.UserID)
-		candidate, _ := fetchCandidate(v.CandidateID)
-		election, _ := fetchElection(v.ElectionID)
+		user, errUser := fetchUser(v.UserID)
+		if errUser != nil {
+			log.Printf("Warning: cannot fetch user %d: %v", v.UserID, errUser)
+		}
+
+		candidate, errCandidate := fetchCandidate(v.CandidateID)
+		if errCandidate != nil {
+			log.Printf("Warning: cannot fetch candidate %d: %v", v.CandidateID, errCandidate)
+		}
+
+		election, errElection := fetchElection(v.ElectionID)
+		if errElection != nil {
+			log.Printf("Warning: cannot fetch election %d: %v", v.ElectionID, errElection)
+		}
 
 		result = append(result, VoteWithDetails{
 			Votes:     v,
@@ -128,7 +146,6 @@ func GetVoteWithDetails(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// CreateVote รับ JSON มาสร้าง vote ใหม่
 func CreateVote(c *gin.Context) {
 	var vote entity.Votes
 
@@ -137,24 +154,28 @@ func CreateVote(c *gin.Context) {
 		return
 	}
 
-	// กำหนดเวลาปัจจุบัน
 	vote.Timestamp = time.Now()
 
 	db := config.DB()
 	if err := db.Create(&vote).Error; err != nil {
+		log.Printf("Failed to create vote: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create vote"})
 		return
+	}
+
+	if metrics.VotesCreatedTotal != nil {
+		metrics.VotesCreatedTotal.Inc()
 	}
 
 	c.JSON(http.StatusCreated, vote)
 }
 
-// GetAllVotes ดึงข้อมูลโหวตทั้งหมด
 func GetAllVotes(c *gin.Context) {
 	db := config.DB()
 	var votes []entity.Votes
 
 	if err := db.Find(&votes).Error; err != nil {
+		log.Printf("Failed to get votes: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get votes"})
 		return
 	}
@@ -162,7 +183,6 @@ func GetAllVotes(c *gin.Context) {
 	c.JSON(http.StatusOK, votes)
 }
 
-// GetVotesByCandidate ดึงข้อมูลโหวตทั้งหมดตาม candidate_id
 func GetVotesByCandidate(c *gin.Context) {
 	candidateIDStr := c.Param("candidate_id")
 	candidateID, err := strconv.Atoi(candidateIDStr)
@@ -175,6 +195,7 @@ func GetVotesByCandidate(c *gin.Context) {
 	var votes []entity.Votes
 
 	if err := db.Where("candidate_id = ?", candidateID).Find(&votes).Error; err != nil {
+		log.Printf("Failed to get votes by candidate: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get votes"})
 		return
 	}
@@ -182,7 +203,6 @@ func GetVotesByCandidate(c *gin.Context) {
 	c.JSON(http.StatusOK, votes)
 }
 
-// DeleteVote ลบ vote โดย ID
 func DeleteVote(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -193,8 +213,13 @@ func DeleteVote(c *gin.Context) {
 
 	db := config.DB()
 	if err := db.Delete(&entity.Votes{}, id).Error; err != nil {
+		log.Printf("Failed to delete vote: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete vote"})
 		return
+	}
+
+	if metrics.VotesDeletedTotal != nil {
+		metrics.VotesDeletedTotal.Inc()
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Vote deleted"})

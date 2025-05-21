@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -13,7 +14,21 @@ import (
 	"example.com/se/entity"
 	"example.com/se/metrics"
 	"example.com/se/services"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/push"
 )
+
+const pushGatewayURL = "http://pushgateway:9091"
+const jobName = "auth_service"
+
+func pushMetric(collector prometheus.Collector) {
+	if err := push.New(pushGatewayURL, jobName).
+		Collector(collector).
+		Push(); err != nil {
+		log.Println("Failed to push metric:", err)
+	}
+}
 
 type SignUpPayload struct {
 	FirstName string    `json:"first_name" binding:"required"`
@@ -35,6 +50,7 @@ func SignUp(c *gin.Context) {
 	var payload SignUpPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		metrics.UserSignupFailuresTotal.Inc()
+		pushMetric(metrics.UserSignupFailuresTotal)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -44,11 +60,13 @@ func SignUp(c *gin.Context) {
 	result := db.Where("email = ?", payload.Email).First(&existingUser)
 	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		metrics.UserSignupFailuresTotal.Inc()
+		pushMetric(metrics.UserSignupFailuresTotal)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
 	if existingUser.ID != 0 {
 		metrics.UserSignupFailuresTotal.Inc()
+		pushMetric(metrics.UserSignupFailuresTotal)
 		c.JSON(http.StatusConflict, gin.H{"error": "Email is already registered"})
 		return
 	}
@@ -56,6 +74,7 @@ func SignUp(c *gin.Context) {
 	hashedPassword, err := config.HashPassword(payload.Password)
 	if err != nil {
 		metrics.UserSignupFailuresTotal.Inc()
+		pushMetric(metrics.UserSignupFailuresTotal)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 		return
 	}
@@ -73,15 +92,18 @@ func SignUp(c *gin.Context) {
 
 	if err := db.Create(&user).Error; err != nil {
 		metrics.UserSignupFailuresTotal.Inc()
+		pushMetric(metrics.UserSignupFailuresTotal)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	metrics.UserSignupsTotal.Inc()
+	pushMetric(metrics.UserSignupsTotal)
 
 	var count int64
 	db.Model(&entity.Users{}).Count(&count)
 	metrics.UsersTotal.Set(float64(count))
+	pushMetric(metrics.UsersTotal)
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Sign-up successful"})
 }
@@ -90,6 +112,7 @@ func SignIn(c *gin.Context) {
 	var payload SignInPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		metrics.UserLoginFailuresTotal.Inc()
+		pushMetric(metrics.UserLoginFailuresTotal)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -98,6 +121,7 @@ func SignIn(c *gin.Context) {
 	err := config.DB().Where("email = ?", payload.Email).First(&user).Error
 	if err != nil {
 		metrics.UserLoginFailuresTotal.Inc()
+		pushMetric(metrics.UserLoginFailuresTotal)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		} else {
@@ -108,11 +132,13 @@ func SignIn(c *gin.Context) {
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(payload.Password)); err != nil {
 		metrics.UserLoginFailuresTotal.Inc()
+		pushMetric(metrics.UserLoginFailuresTotal)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Password is incorrect"})
 		return
 	}
 
 	metrics.UserLoginsTotal.Inc()
+	pushMetric(metrics.UserLoginsTotal)
 
 	jwtWrapper := services.JwtWrapper{
 		SecretKey:       "SvNQpBN8y3qlVrsGAYYWoJJk56LtzFHx",
@@ -123,6 +149,7 @@ func SignIn(c *gin.Context) {
 	token, err := jwtWrapper.GenerateToken(user.Email)
 	if err != nil {
 		metrics.UserLoginFailuresTotal.Inc()
+		pushMetric(metrics.UserLoginFailuresTotal)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error signing token"})
 		return
 	}

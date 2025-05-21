@@ -4,14 +4,23 @@ global:
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
-      - targets: ['prometheus:9090']  # เปลี่ยนจาก localhost เป็น prometheus
+      - targets: ['prometheus:9090']
 
-  - job_name: 'rabbitmq'
-    static_configs:
-      - targets: ['rabbitmq:15692']
     metrics_path: '/metrics'
     params:
       format: ['prometheus']
+
+  - job_name: 'vote_service'     
+    static_configs:
+      - targets: ['vote_service:8004']  
+
+  - job_name: 'candidate_service'     
+    static_configs:
+      - targets: ['candidate_service:8003']  
+
+  - job_name: 'election_service'     
+    static_configs:
+      - targets: ['election_service:8002'] 
 
   - job_name: 'workers'
     static_configs:
