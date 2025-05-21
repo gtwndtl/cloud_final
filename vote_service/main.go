@@ -12,8 +12,7 @@ func main() {
 	config.SetupDatabase()
 
 	r := gin.Default()
-
-	api := r.Group("/api")
+	api := r.Group("/")
 	{
 		api.POST("/vote", controller.CreateVote)
 		api.GET("/votes", controller.GetAllVotes)

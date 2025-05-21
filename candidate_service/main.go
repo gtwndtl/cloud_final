@@ -13,7 +13,7 @@ func main() {
 
 	r := gin.Default()
 
-	api := r.Group("/api")
+	api := r.Group("/")
 	{
 		api.GET("/candidates", controller.GetAllCandidates)
 		api.GET("/candidate/:id", controller.GetCandidate)

@@ -21,7 +21,7 @@ func main() {
 		c.String(http.StatusOK, "Election Service Running on PORT: %s", PORT)
 	})
 
-	api := r.Group("/api")
+	api := r.Group("/")
 	{
 		api.GET("/elections", controller.GetAllElections)
 		api.GET("/election/:id", controller.GetElection)

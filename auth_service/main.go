@@ -43,7 +43,7 @@ func main() {
 
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
-	api := r.Group("/api")
+	api := r.Group("/")
 	{
 		api.POST("/signup", controller.SignUp)
 		api.POST("/signin", controller.SignIn)
