@@ -1,0 +1,148 @@
+version: "3.8"
+
+services:
+  # jenkins-server:
+  #   build: ./jenkins
+  #   container_name: jenkins-server
+  #   ports:
+  #     - "8080:8080"
+  #     - "50000:50000"
+  #   volumes:
+  #     - jenkins_home:/var/jenkins_home
+  #     - /var/run/docker.sock:/var/run/docker.sock  # ให้ Jenkins ใช้ Docker ของ host ได้
+  #     - .:/workspace  # ให้ Jenkins access โค้ดในโปรเจกต์ (เช่น docker-compose.yml)
+  #   restart: unless-stopped
+
+  auth_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: auth_db
+    ports:
+      - "54321:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data  # เปลี่ยนชื่อ volume ให้ตรงกับ service
+
+  auth_service:
+    build: ./auth_service        # เปลี่ยนเป็นโฟลเดอร์ auth_service ถ้าโฟลเดอร์ของคุณชื่อแบบนี้
+    depends_on:
+      - auth_db
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@auth_db:5432/auth_db  # แก้ URL ให้ตรงกับชื่อ service และฐานข้อมูล
+      - JWT_SECRET_KEY=super-secret-key
+    ports:
+      - "8001:8001"
+
+
+  election_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: election_db
+    volumes:
+      - election_db_data:/var/lib/postgresql/data
+    ports:
+      - "54323:5432"
+
+  election_service:
+    build: ./election_service
+    depends_on:
+      - election_db
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@election_db:5432/election_db
+    ports:
+      - "8002:8002"
+
+  candidate_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: candidate_db   # ตรงนี้คือชื่อ database ที่จะสร้างตอน container เริ่มทำงาน
+    volumes:
+      - candidate_db_data:/var/lib/postgresql/data
+    ports:
+      - "54322:5432"
+
+
+  candidate_service:
+    build: ./candidate_service
+    depends_on:
+      - candidate_db
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@candidate_db:5432/candidate_db
+    ports:
+      - "8003:8003"
+
+  vote_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vote_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - vote_db_data:/var/lib/postgresql/data
+
+
+  vote_service:
+    build: ./vote_service
+    depends_on:
+      - vote_db
+    environment:
+      DATABASE_URL: "host=vote_db user=postgres password=postgres dbname=vote_db port=5432 sslmode=disable TimeZone=Asia/Bangkok"
+    ports:
+      - "8004:8004"
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.external-url=/prometheus/'
+      - '--web.route-prefix=/'
+    ports:
+      - "9090:9090"
+
+
+  pushgateway:
+    image: prom/pushgateway
+    container_name: pushgateway
+    ports:
+      - "9091:9091"
+
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - ":3000"
+    environment:
+      - GF_SERVER_ROOT_URL=http://localhost/grafana/
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+
+  nginx:
+    build: ./api-gateway
+    container_name: nginx
+    restart: always
+    ports:
+      - "80:80"
+
+
+
+volumes:
+  auth_db_data:
+  election_db_data:
+  candidate_db_data:
+  vote_db_data:
+  grafana_data:
+  # jenkins_home:
