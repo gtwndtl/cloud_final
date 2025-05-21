@@ -21,5 +21,5 @@ func main() {
 		api.DELETE("/vote/:id", controller.DeleteVote)
 	}
 
-	r.Run(":8004") // ตัวอย่าง port 8005
+	r.Run(":8004") 
 }
